@@ -1,22 +1,25 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { FileText, Download, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FileText, Download, Loader2, Plus, Trash2, Edit3, Check, X, ArrowRight, Settings } from 'lucide-react';
 import ExperienceSection from './ExperienceSection';
 import JobInput from './JobInput';
 import dynamic from 'next/dynamic';
-import { type ResumeData } from './ResumePDF';
+import Link from 'next/link';
+import { INITIAL_DATA } from '@/lib/initialData';
 
 const PDFPreview = dynamic(() => import('./PDFPreview'), {
     ssr: false,
     loading: () => <div className="w-full h-full flex items-center justify-center text-muted-foreground">Loading PDF Viewer...</div>
 });
 
+// Re-export types for use in other components
 export type Experience = {
     id: string;
     title: string;
     company: string;
+    location: string;
     period: string;
     description: string[];
 };
@@ -24,66 +27,89 @@ export type Experience = {
 export type Project = {
     id: string;
     name: string;
-    technologies: string[];
     description: string[];
 };
 
-const DUMMY_EXPERIENCE: Experience[] = [
-    {
-        id: '1',
-        title: 'Senior Software Engineer',
-        company: 'TechCorp',
-        period: '2021 - Present',
-        description: [
-            'Led migration of legacy monolith to microservices architecture.',
-            'Improved system performance by 40% through code optimization.',
-            'Mentored junior developers and conducted code reviews.',
-        ],
-    },
-    {
-        id: '2',
-        title: 'Software Developer',
-        company: 'StartupInc',
-        period: '2019 - 2021',
-        description: [
-            'Developed full-stack web applications using React and Node.js.',
-            'Implemented CI/CD pipelines to streamline deployment.',
-            'Collaborated with product team to define feature requirements.',
-        ],
-    },
-];
+export type Education = {
+    id: string;
+    degree: string;
+    school: string;
+    location: string;
+    period: string;
+    gpa?: string;
+};
 
-const DUMMY_PROJECTS: Project[] = [
-    {
-        id: '1',
-        name: 'E-commerce Platform',
-        technologies: ['Next.js', 'Stripe', 'PostgreSQL'],
-        description: [
-            'Built a scalable e-commerce platform handling 10k+ daily users.',
-            'Integrated secure payment gateway with Stripe.',
-        ],
+export type ExtraCurricular = {
+    id: string;
+    title: string;
+    organization: string;
+    period: string;
+    description: string[];
+};
+
+export type SkillCategory = {
+    id: string;
+    category: string;
+    items: string;
+};
+
+export type PersonalInfo = {
+    name: string;
+    email: string;
+    phone?: string;
+    location: string;
+    github?: string;
+    linkedin?: string;
+};
+
+export type ResumeData = {
+    personalInfo: PersonalInfo;
+    summary: string;
+    skills: SkillCategory[];
+    experiences: Experience[];
+    projects: Project[];
+    education: Education[];
+    extracurriculars: ExtraCurricular[];
+};
+
+// Placeholder data for initial view (empty state)
+const EMPTY_DATA: ResumeData = {
+    personalInfo: {
+        name: "",
+        email: "",
+        location: ""
     },
-    {
-        id: '2',
-        name: 'AI Chatbot',
-        technologies: ['Python', 'OpenAI API', 'React'],
-        description: [
-            'Created an AI-powered customer support chatbot.',
-            'Reduced support ticket volume by 25%.',
-        ],
-    },
-];
+    summary: "",
+    skills: [],
+    experiences: [],
+    projects: [],
+    education: [],
+    extracurriculars: [],
+};
 
 export default function ResumeBuilder() {
-    const [experiences, setExperiences] = useState<Experience[]>(DUMMY_EXPERIENCE);
-    const [projects, setProjects] = useState<Project[]>(DUMMY_PROJECTS);
+    const [resumeData, setResumeData] = useState<ResumeData>(INITIAL_DATA);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [generatedData, setGeneratedData] = useState<any>(null); // Store parsed/tailored data
+    const [hasGenerated, setHasGenerated] = useState(false);
+    const [generatedPreview, setGeneratedPreview] = useState<ResumeData | null>(null);
+
+    // Load master resume or initial data just to have education/extras which might not be tailored
+    // But for now, we want the "Edit Your Info" to be empty-ish until tailored? 
+    // Actually, user said "populate the contents of the llm in the Edit Your Information section".
+    // So let's start blank, and when they generate, we fill it.
+
+    const handleDataChange = (newData: ResumeData) => {
+        setResumeData(newData);
+    };
 
     const handleGenerate = async (url: string) => {
         setIsGenerating(true);
         try {
-            // Step 1: Parse the job description
+            // 1. Get Master Resume from LocalStorage or Fallback
+            const savedMaster = localStorage.getItem('masterResume');
+            const masterData = savedMaster ? JSON.parse(savedMaster) : INITIAL_DATA;
+
+            // 2. Parse Job Description
             const parseRes = await fetch('/api/parse-job', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -93,79 +119,206 @@ export default function ResumeBuilder() {
 
             if (!parseData.success) throw new Error(parseData.error);
 
-            // Step 2: Generate tailored content based on parsed text
+            // 3. Generate Tailored Content (using Master Data)
             const genRes = await fetch('/api/generate-resume', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     jobDescription: parseData.fullText,
-                    experiences,
-                    projects
+                    experiences: masterData.experiences,
+                    projects: masterData.projects,
+                    summary: masterData.summary
                 }),
             });
             const genData = await genRes.json();
 
             if (!genData.success) throw new Error(genData.error);
 
-            // Merge tailored content with metadata
-            setGeneratedData({
-                extractedKeywords: parseData.extractedKeywords,
-                summary: parseData.summary,
+            // 4. Merge Tailored Content with non-tailored Master Sections (Education, Skills, Extras)
+            // Note: Skills *could* be tailored, but for now we just use master skills or if API returned new ones.
+            // Our current API only returns summary, experiences, projects.
+            const tailoredResume: ResumeData = {
+                ...masterData, // Start with everything from master
+                summary: genData.summary || masterData.summary,
                 experiences: genData.experiences,
-                projects: genData.projects
-            });
+                projects: genData.projects,
+                // Skills, Education, Extras remain as is from Master
+            };
+
+            setResumeData(tailoredResume);
+            setHasGenerated(true);
 
         } catch (error) {
             console.error('Error generating resume:', error);
-            alert('Failed to generate resume. Please check your console for details.');
+            alert('Failed to generate resume. Please check your console.');
         } finally {
             setIsGenerating(false);
         }
     };
 
+    const updatePersonalInfo = (field: keyof PersonalInfo, value: string) => {
+        const newData = {
+            ...resumeData,
+            personalInfo: {
+                ...resumeData.personalInfo,
+                [field]: value
+            }
+        };
+        setResumeData(newData);
+        if (generatedPreview) {
+            setGeneratedPreview({
+                ...generatedPreview,
+                personalInfo: newData.personalInfo
+            });
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background text-foreground p-8 font-sans">
-            <header className="mb-10 text-center">
-                <h1 className="text-4xl font-bold tracking-tight mb-2 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+            <header className="mb-10 flex flex-col items-center text-center gap-4">
+                <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                     AI Resume Builder
                 </h1>
-                <p className="text-muted-foreground">Tailor your resume to any job description instantly.</p>
+
+                <div className="flex gap-4 items-center">
+                    <Link href="/master-resume" className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 hover:bg-secondary text-sm font-medium transition-colors border border-border">
+                        <Settings className="w-4 h-4" />
+                        Manage Master Resume
+                    </Link>
+                </div>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-7xl mx-auto">
-                <div className="space-y-6">
-                    <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-blue-400" />
-                            Your Experience
+            <div className="max-w-[1600px] mx-auto space-y-8">
+                {/* Top Section: Job Input & Personal Info */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Left: Job Input */}
+                    <section className="bg-card border border-border rounded-xl p-8 shadow-sm relative overflow-hidden group h-full">
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                        <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                            Start Here: Paste Job URL
                         </h2>
-                        <ExperienceSection experiences={experiences} projects={projects} />
+                        <JobInput onGenerate={handleGenerate} isLoading={isGenerating} />
                     </section>
 
-                    <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-                        <JobInput onGenerate={handleGenerate} isLoading={isGenerating} />
+                    {/* Right: Personal Info */}
+                    <section className="bg-card border border-border rounded-xl p-6 shadow-sm h-full">
+                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                            <Settings className="w-5 h-5 text-purple-400" />
+                            Personal Information
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-muted-foreground">Full Name</label>
+                                <input
+                                    className="w-full p-2 bg-secondary/20 border border-border rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                                    placeholder="Full Name"
+                                    value={resumeData.personalInfo?.name || ''}
+                                    onChange={(e) => updatePersonalInfo('name', e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-muted-foreground">Email Address</label>
+                                <input
+                                    className="w-full p-2 bg-secondary/20 border border-border rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                                    placeholder="Email Address"
+                                    value={resumeData.personalInfo?.email || ''}
+                                    onChange={(e) => updatePersonalInfo('email', e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-muted-foreground">Phone Number</label>
+                                <input
+                                    className="w-full p-2 bg-secondary/20 border border-border rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                                    placeholder="Phone Number (Optional)"
+                                    value={resumeData.personalInfo?.phone || ''}
+                                    onChange={(e) => updatePersonalInfo('phone', e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-muted-foreground">Location</label>
+                                <input
+                                    className="w-full p-2 bg-secondary/20 border border-border rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                                    placeholder="Location"
+                                    value={resumeData.personalInfo?.location || ''}
+                                    onChange={(e) => updatePersonalInfo('location', e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-muted-foreground">LinkedIn URL</label>
+                                <input
+                                    className="w-full p-2 bg-secondary/20 border border-border rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                                    placeholder="LinkedIn URL"
+                                    value={resumeData.personalInfo?.linkedin || ''}
+                                    onChange={(e) => updatePersonalInfo('linkedin', e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-muted-foreground">GitHub URL</label>
+                                <input
+                                    className="w-full p-2 bg-secondary/20 border border-border rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                                    placeholder="GitHub URL"
+                                    value={resumeData.personalInfo?.github || ''}
+                                    onChange={(e) => updatePersonalInfo('github', e.target.value)}
+                                />
+                            </div>
+                        </div>
                     </section>
                 </div>
 
-                <div className="bg-muted/30 border border-border rounded-xl p-6 h-[800px] flex flex-col">
-                    <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                        <Download className="w-5 h-5 text-green-400" />
-                        Live Preview
-                    </h2>
-                    <div className="flex-1 bg-white rounded-lg shadow-inner overflow-hidden relative">
-                        {generatedData ? (
-                            <PDFPreview data={generatedData} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Editor Section */}
+                    <motion.section
+                        layout
+                        className="bg-card border border-border rounded-xl p-6 shadow-sm"
+                    >
+                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-blue-400" />
+                            {hasGenerated ? "Tailored Result (Editable)" : "Resume Content"}
+                        </h2>
+
+                        {!hasGenerated ? (
+                            <div className="h-64 flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border/50 rounded-xl bg-muted/20">
+                                <ArrowRight className="w-8 h-8 mb-2 opacity-50" />
+                                <p>Enter a Job URL above to generate your tailored resume.</p>
+                                <p className="text-xs mt-2">The AI will use your <Link href="/master-resume" className="underline hover:text-blue-400">Master Resume</Link> as a base.</p>
+                            </div>
                         ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                                <p>Enter a Job URL to generate your resume</p>
-                            </div>
+                            <ExperienceSection
+                                data={resumeData}
+                                onChange={handleDataChange}
+                            />
                         )}
-                        {isGenerating && (
-                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-                                <Loader2 className="w-10 h-10 animate-spin text-white" />
-                            </div>
-                        )}
-                    </div>
+                    </motion.section>
+
+                    {/* Preview Section */}
+                    <motion.div
+                        layout
+                        className="bg-muted/30 border border-border rounded-xl p-6 min-h-[1500px] flex flex-col"
+                    >
+                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                            <Download className="w-5 h-5 text-green-400" />
+                            Live Preview (Full View)
+                        </h2>
+                        <div className="flex-1 bg-white rounded-lg shadow-inner overflow-hidden relative">
+                            {hasGenerated || resumeData.summary || resumeData.personalInfo?.name ? (
+                                <PDFPreview data={generatedPreview || resumeData} />
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                                    <p>Ready to generate...</p>
+                                </div>
+                            )}
+
+                            {isGenerating && (
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 backdrop-blur-sm">
+                                    <div className="text-center">
+                                        <Loader2 className="w-10 h-10 animate-spin text-white mx-auto mb-2" />
+                                        <p className="text-white font-medium">Reading Master Resume...</p>
+                                        <p className="text-white/80 text-sm">Tailoring to Job Description...</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
                 </div>
             </div>
         </div>
