@@ -83,15 +83,41 @@ export default function ResumeBuilder() {
     const handleGenerate = async (url: string) => {
         setIsGenerating(true);
         try {
-            const response = await fetch('/api/parse-job', {
+            // Step 1: Parse the job description
+            const parseRes = await fetch('/api/parse-job', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url }),
             });
-            const data = await response.json();
-            setGeneratedData({ ...data, experiences, projects }); // Mock merging logic
+            const parseData = await parseRes.json();
+
+            if (!parseData.success) throw new Error(parseData.error);
+
+            // Step 2: Generate tailored content based on parsed text
+            const genRes = await fetch('/api/generate-resume', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jobDescription: parseData.fullText,
+                    experiences,
+                    projects
+                }),
+            });
+            const genData = await genRes.json();
+
+            if (!genData.success) throw new Error(genData.error);
+
+            // Merge tailored content with metadata
+            setGeneratedData({
+                extractedKeywords: parseData.extractedKeywords,
+                summary: parseData.summary,
+                experiences: genData.experiences,
+                projects: genData.projects
+            });
+
         } catch (error) {
             console.error('Error generating resume:', error);
+            alert('Failed to generate resume. Please check your console for details.');
         } finally {
             setIsGenerating(false);
         }

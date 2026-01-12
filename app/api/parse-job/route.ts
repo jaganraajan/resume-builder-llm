@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
+import { generateText } from 'ai';
+import { llamaModel } from '@/lib/llm';
+
+export const maxDuration = 30; // 30 seconds for LLM processing
 
 export async function POST(req: Request) {
     try {
@@ -25,36 +29,43 @@ export async function POST(req: Request) {
         const html = await response.text();
         const $ = cheerio.load(html);
 
-        // Extract text from common job description containers
-        // This is a naive implementation; real-world JD sites vary wildly.
-        // We'll target 'body' but clean it up heavily.
-        const bodyText = $('body').text();
+        // Remove scripts, styles, and other noise
+        $('script, style, nav, footer, header').remove();
+        const cleanText = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 10000); // Token limit safety
 
-        // Clean up whitespace
-        const cleanText = bodyText.replace(/\s+/g, ' ').trim();
+        // Use LLM to extract structured data
+        const { text } = await generateText({
+            model: llamaModel,
+            prompt: `
+            You are an expert Job Description Parser. 
+            Extract the following information from this job description text:
+            1. Up to 15 key technical skills as a comma-separated list.
+            2. A one-sentence summary of the role.
 
-        // Mock "Analysis" - Finding keywords
-        // In a real app, this text would go to an LLM.
-        // Here we just look for some common tech keywords in the text.
-        const commonKeywords = [
-            'React', 'Node.js', 'Python', 'TypeScript', 'AWS', 'Docker',
-            'Kubernetes', 'SQL', 'NoSQL', 'Java', 'C++', 'Go', 'Rust',
-            'Communication', 'Leadership', 'Agile', 'Scrum'
-        ];
+            Format your response exactly as:
+            KEYWORDS: skill1, skill2, ...
+            SUMMARY: role summary here
 
-        const extractedKeywords = commonKeywords.filter(keyword =>
-            new RegExp(`\\b${keyword}\\b`, 'i').test(cleanText)
-        );
+            Text: ${cleanText}`,
+        });
 
-        // Add some random "hallucinated" keywords if none found, to show it "working"
-        if (extractedKeywords.length === 0) {
-            extractedKeywords.push('Teamwork', 'Problem Solving');
-        }
+        // Parse LLM response
+        const keywordsMatch = text.match(/KEYWORDS:\s*(.*)/i);
+        const summaryMatch = text.match(/SUMMARY:\s*(.*)/i);
+
+        const extractedKeywords = keywordsMatch ?
+            keywordsMatch[1].split(',').map(s => s.trim()).filter(Boolean) :
+            ['Teamwork', 'Communication'];
+
+        const summary = summaryMatch ?
+            summaryMatch[1].trim() :
+            `Parsed job description from ${url}`;
 
         return NextResponse.json({
             success: true,
             extractedKeywords,
-            summary: `Parsed job description from ${url}`
+            summary,
+            fullText: cleanText
         });
 
     } catch (error: any) {
