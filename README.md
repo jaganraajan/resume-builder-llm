@@ -233,19 +233,6 @@ resume-builder-llm/
 ## 📝 License
 
 This project is open source and available for personal use.
-
----
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome! Feel free to check the issues page.
-
----
-
-## ⭐ Show Your Support
-
-If this project helped you land an interview, consider giving it a star on GitHub!
-
 ---
 
 **Happy job hunting! 🚀**
