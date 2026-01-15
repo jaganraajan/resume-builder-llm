@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Download, Loader2, Plus, Trash2, Edit3, Check, X, ArrowRight, Settings, Mail } from 'lucide-react';
 import ExperienceSection from './ExperienceSection';
@@ -102,6 +102,7 @@ export default function ResumeBuilder() {
     const [generatedPreview, setGeneratedPreview] = useState<ResumeData | null>(null);
     const [jobDescription, setJobDescription] = useState<string>('');
     const [createCoverLetter, setCreateCoverLetter] = useState(false);
+    const [targetRole, setTargetRole] = useState<string>('');
 
     // Load master resume or initial data just to have education/extras which might not be tailored
     // But for now, we want the "Edit Your Info" to be empty-ish until tailored? 
@@ -130,6 +131,7 @@ export default function ResumeBuilder() {
             if (!parseData.success) throw new Error(parseData.error);
 
             setJobDescription(parseData.fullText);
+            const jobTitle = parseData.jobTitle || "Role";
 
             // 3. Generate Tailored Content (using Master Data)
             const genRes = await fetch('/api/generate-resume', {
@@ -139,7 +141,10 @@ export default function ResumeBuilder() {
                     jobDescription: parseData.fullText,
                     experiences: masterData.experiences,
                     projects: masterData.projects,
-                    summary: masterData.summary
+                    extracurriculars: masterData.extracurriculars,
+                    summary: masterData.summary,
+                    currentCoverLetter: masterData.coverLetter,
+                    includeCoverLetter: createCoverLetter
                 }),
             });
             const genData = await genRes.json();
@@ -148,21 +153,23 @@ export default function ResumeBuilder() {
 
             // 4. Merge Tailored Content with non-tailored Master Sections (Education, Skills, Extras)
             // Note: Skills *could* be tailored, but for now we just use master skills or if API returned new ones.
-            // Our current API only returns summary, experiences, projects.
+            // Our current API only returns summary, experiences, projects, and now extracurriculars.
             const tailoredResume: ResumeData = {
                 ...masterData, // Start with everything from master
                 summary: genData.summary || masterData.summary,
                 experiences: genData.experiences,
                 projects: genData.projects,
-                // Skills, Education, Extras remain as is from Master
+                extracurriculars: genData.extracurriculars || [],
+                // Skills, Education remain as is from Master
                 coverLetter: createCoverLetter
-                    ? (masterData.coverLetter
-                        ? masterData.coverLetter.replace("[Role Name]", "Target Role").replace("[Company Name]", "Target Company")
-                        : "Dear Hiring Manager,\n\nPlease create a Master Cover Letter in the profile settings to enable automatic tailoring.")
+                    ? (genData.coverLetter || (masterData.coverLetter
+                        ? masterData.coverLetter.replace("[Role Name]", jobTitle).replace("[Company Name]", "Target Company")
+                        : "Dear Hiring Manager,\n\nPlease create a Master Cover Letter in the profile settings to enable automatic tailoring."))
                     : undefined
             };
 
             setResumeData(tailoredResume);
+            setTargetRole(jobTitle);
             setHasGenerated(true);
 
         } catch (error) {
@@ -194,7 +201,7 @@ export default function ResumeBuilder() {
         <div className="min-h-screen bg-background text-foreground p-8 font-sans">
             <header className="mb-10 flex flex-col items-center text-center gap-4">
                 <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                    AI Resume Builder
+                    AI Resume Builder using Llama 3
                 </h1>
 
                 <div className="flex gap-4 items-center">
@@ -298,7 +305,7 @@ export default function ResumeBuilder() {
                     {/* Resume Content Section */}
                     <motion.section
                         layout
-                        className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col gap-6 min-w-[600px] flex-shrink-0"
+                        className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col gap-6 w-[600px] flex-shrink-0"
                     >
                         <div className="flex flex-col gap-4">
                             <div className="flex items-center justify-between">
@@ -317,7 +324,7 @@ export default function ResumeBuilder() {
                             <div className="h-64 flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border/50 rounded-xl bg-muted/20">
                                 <ArrowRight className="w-8 h-8 mb-2 opacity-50" />
                                 <p>Enter a Job URL above to generate your tailored resume.</p>
-                                <p className="text-xs mt-2">The AI will use your <Link href="/master-profile" className="underline hover:text-blue-400">Master Profile</Link> as a base.</p>
+                                <div className="text-xs mt-2">The AI will use your <Link href="/master-profile" className="underline hover:text-blue-400">Master Profile</Link> as a base.</div>
                             </div>
                         ) : (
                             <ExperienceSection
@@ -338,7 +345,7 @@ export default function ResumeBuilder() {
                         </h2>
                         <div className="flex-1 bg-white rounded-lg shadow-inner overflow-hidden relative">
                             {hasGenerated || resumeData.summary || resumeData.personalInfo?.name ? (
-                                <PDFPreview data={generatedPreview || resumeData} />
+                                <PDFPreview data={generatedPreview || resumeData} filenameRole={targetRole} />
                             ) : (
                                 <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                                     <p>Ready to generate...</p>
@@ -405,6 +412,7 @@ export default function ResumeBuilder() {
                                 <CoverLetterPreview
                                     personalInfo={resumeData.personalInfo}
                                     coverLetter={resumeData.coverLetter}
+                                    filenameRole={targetRole}
                                 />
                             ) : (
                                 <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">

@@ -17,7 +17,7 @@ const styles = StyleSheet.create({
     name: {
         fontSize: 18,
         fontFamily: 'Times-Bold',
-        marginBottom: 4,
+        marginBottom: 12,
         textTransform: 'uppercase',
     },
     contact: {
@@ -49,9 +49,11 @@ export default function CoverLetterPDF({ personalInfo, coverLetter }: CoverLette
                     </View>
                 </View>
                 <View style={{ marginTop: 20 }}>
-                    <Text style={{ fontSize: 11, textAlign: 'justify', lineHeight: 1.5 }}>
-                        {coverLetter}
-                    </Text>
+                    {coverLetter.split('\n').map((line, i) => (
+                        <Text key={i} style={{ fontSize: 11, textAlign: 'justify', lineHeight: 1.5, marginBottom: 6 }}>
+                            {line || ' '}
+                        </Text>
+                    ))}
                 </View>
             </Page>
         </Document>

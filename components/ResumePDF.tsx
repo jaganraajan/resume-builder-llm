@@ -17,7 +17,7 @@ const styles = StyleSheet.create({
     name: {
         fontSize: 18,
         fontFamily: 'Times-Bold',
-        marginBottom: 4,
+        marginBottom: 12,
         textTransform: 'uppercase',
     },
     contact: {
@@ -109,25 +109,7 @@ export default function ResumePDF({ data }: ResumePDFProps) {
     return (
         <Document>
             {/* Cover Letter Page */}
-            {data.coverLetter && (
-                <Page size="A4" style={styles.page}>
-                    <View style={styles.header}>
-                        <Text style={styles.name}>{data.personalInfo.name}</Text>
-                        <View style={styles.contact}>
-                            <Text>{data.personalInfo.email}</Text>
-                            {data.personalInfo.phone && <Text>|</Text>}
-                            {data.personalInfo.phone && <Text>{data.personalInfo.phone}</Text>}
-                            <Text>|</Text>
-                            <Text>{data.personalInfo.location}</Text>
-                        </View>
-                    </View>
-                    <View style={{ marginTop: 20 }}>
-                        <Text style={{ fontSize: 11, textAlign: 'justify', lineHeight: 1.5 }}>
-                            {data.coverLetter}
-                        </Text>
-                    </View>
-                </Page>
-            )}
+
 
             {/* Resume Page */}
             <Page size="A4" style={styles.page}>
@@ -172,7 +154,7 @@ export default function ResumePDF({ data }: ResumePDFProps) {
                     <Text style={styles.sectionTitle}>Skills</Text>
                     <View style={styles.skillsContainer}>
                         {data.skills.map(skill => (
-                            <View key={skill.id} style={styles.skillRow}>
+                            <View key={skill.id} style={styles.skillRow} wrap={false}>
                                 <Text style={styles.skillCategory}>{skill.category}:</Text>
                                 <Text style={styles.skillItems}>{skill.items}</Text>
                             </View>
@@ -184,7 +166,7 @@ export default function ResumePDF({ data }: ResumePDFProps) {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Work Experience</Text>
                     {data.experiences.map((exp) => (
-                        <View key={exp.id} style={styles.item}>
+                        <View key={exp.id} style={styles.item} wrap={false}>
                             <View style={styles.itemHeader}>
                                 <Text style={styles.title}>{exp.title}</Text>
                                 <Text style={styles.dateLocation}>{exp.period}</Text>
@@ -209,7 +191,7 @@ export default function ResumePDF({ data }: ResumePDFProps) {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Open Source Projects</Text>
                     {data.projects.map((proj) => (
-                        <View key={proj.id} style={styles.item}>
+                        <View key={proj.id} style={styles.item} wrap={false}>
                             <View style={styles.itemHeader}>
                                 <Text style={styles.title}>{proj.name}</Text>
                             </View>
@@ -229,7 +211,7 @@ export default function ResumePDF({ data }: ResumePDFProps) {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Education</Text>
                     {data.education.map((edu) => (
-                        <View key={edu.id} style={styles.item}>
+                        <View key={edu.id} style={styles.item} wrap={false}>
                             <View style={styles.itemHeader}>
                                 <Text style={styles.title}>{edu.degree}</Text>
                                 <Text style={styles.dateLocation}>{edu.period}</Text>
@@ -244,26 +226,28 @@ export default function ResumePDF({ data }: ResumePDFProps) {
                 </View>
 
                 {/* Extra-curricular */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Extra-curricular Activities</Text>
-                    {data.extracurriculars.map((activity) => (
-                        <View key={activity.id} style={styles.item}>
-                            <View style={styles.itemHeader}>
-                                <Text style={styles.title}>{activity.title}</Text>
-                                <Text style={styles.dateLocation}>{activity.period}</Text>
+                {data.extracurriculars && data.extracurriculars.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Extra-curricular Activities</Text>
+                        {data.extracurriculars.map((activity) => (
+                            <View key={activity.id} style={styles.item} wrap={false}>
+                                <View style={styles.itemHeader}>
+                                    <Text style={styles.title}>{activity.title}</Text>
+                                    <Text style={styles.dateLocation}>{activity.period}</Text>
+                                </View>
+                                <Text style={{ fontFamily: 'Times-Italic', marginBottom: 2 }}>{activity.organization}</Text>
+                                <View>
+                                    {activity.description.map((desc, i) => (
+                                        <View key={i} style={styles.bulletPoint}>
+                                            <Text style={styles.bullet}>•</Text>
+                                            <Text style={styles.bulletText}>{desc}</Text>
+                                        </View>
+                                    ))}
+                                </View>
                             </View>
-                            <Text style={{ fontFamily: 'Times-Italic', marginBottom: 2 }}>{activity.organization}</Text>
-                            <View>
-                                {activity.description.map((desc, i) => (
-                                    <View key={i} style={styles.bulletPoint}>
-                                        <Text style={styles.bullet}>•</Text>
-                                        <Text style={styles.bulletText}>{desc}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        </View>
-                    ))}
-                </View>
+                        ))}
+                    </View>
+                )}
             </Page>
         </Document >
     );

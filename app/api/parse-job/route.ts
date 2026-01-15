@@ -41,10 +41,12 @@ export async function POST(req: Request) {
             Extract the following information from this job description text:
             1. Up to 15 key technical skills as a comma-separated list.
             2. A one-sentence summary of the role.
+            3. The exact Job Title.
 
             Format your response exactly as:
             KEYWORDS: skill1, skill2, ...
             SUMMARY: role summary here
+            TITLE: job title here
 
             Text: ${cleanText}`,
         });
@@ -52,6 +54,7 @@ export async function POST(req: Request) {
         // Parse LLM response
         const keywordsMatch = text.match(/KEYWORDS:\s*(.*)/i);
         const summaryMatch = text.match(/SUMMARY:\s*(.*)/i);
+        const titleMatch = text.match(/TITLE:\s*(.*)/i);
 
         const extractedKeywords = keywordsMatch ?
             keywordsMatch[1].split(',').map(s => s.trim()).filter(Boolean) :
@@ -61,10 +64,15 @@ export async function POST(req: Request) {
             summaryMatch[1].trim() :
             `Parsed job description from ${url}`;
 
+        const jobTitle = titleMatch ?
+            titleMatch[1].trim() :
+            'Software Engineer';
+
         return NextResponse.json({
             success: true,
             extractedKeywords,
             summary,
+            jobTitle,
             fullText: cleanText
         });
 
