@@ -108,6 +108,28 @@ interface ResumePDFProps {
 export default function ResumePDF({ data }: ResumePDFProps) {
     return (
         <Document>
+            {/* Cover Letter Page */}
+            {data.coverLetter && (
+                <Page size="A4" style={styles.page}>
+                    <View style={styles.header}>
+                        <Text style={styles.name}>{data.personalInfo.name}</Text>
+                        <View style={styles.contact}>
+                            <Text>{data.personalInfo.email}</Text>
+                            {data.personalInfo.phone && <Text>|</Text>}
+                            {data.personalInfo.phone && <Text>{data.personalInfo.phone}</Text>}
+                            <Text>|</Text>
+                            <Text>{data.personalInfo.location}</Text>
+                        </View>
+                    </View>
+                    <View style={{ marginTop: 20 }}>
+                        <Text style={{ fontSize: 11, textAlign: 'justify', lineHeight: 1.5 }}>
+                            {data.coverLetter}
+                        </Text>
+                    </View>
+                </Page>
+            )}
+
+            {/* Resume Page */}
             <Page size="A4" style={styles.page}>
                 {/* Header */}
                 <View style={styles.header}>
@@ -243,6 +265,6 @@ export default function ResumePDF({ data }: ResumePDFProps) {
                     ))}
                 </View>
             </Page>
-        </Document>
+        </Document >
     );
 }

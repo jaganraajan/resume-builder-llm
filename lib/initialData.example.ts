@@ -55,4 +55,5 @@ export const INITIAL_DATA: ResumeData = {
             description: [' taught python to high school students.'],
         }
     ],
+    coverLetter: "Dear Hiring Manager,\n\nI am writing to express my strong interest in the [Role Name] position at [Company Name]. With my background in...",
 };

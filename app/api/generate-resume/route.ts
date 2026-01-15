@@ -41,7 +41,6 @@ export async function POST(req: Request) {
         Do not include any other text in your response, only the raw JSON.
         `;
 
-        /*
         const { text } = await generateText({
             model: llamaModel,
             prompt: prompt,
@@ -63,15 +62,6 @@ export async function POST(req: Request) {
             console.error('Failed to parse LLM response as JSON:', text);
             throw new Error('LLM failed to generate valid JSON data');
         }
-        */
-
-        // Return provided data as mock tailored data
-        return NextResponse.json({
-            success: true,
-            experiences,
-            projects,
-            summary
-        });
 
     } catch (error: any) {
         console.error('Error generating tailored resume:', error);

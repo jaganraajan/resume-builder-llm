@@ -2,14 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Download, Loader2, Plus, Trash2, Edit3, Check, X, ArrowRight, Settings } from 'lucide-react';
+import { FileText, Download, Loader2, Plus, Trash2, Edit3, Check, X, ArrowRight, Settings, Mail } from 'lucide-react';
 import ExperienceSection from './ExperienceSection';
 import JobInput from './JobInput';
+import ATSScore from './ATSScore';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { INITIAL_DATA } from '@/lib/initialData';
 
 const PDFPreview = dynamic(() => import('./PDFPreview'), {
+    ssr: false,
+    loading: () => <div className="w-full h-full flex items-center justify-center text-muted-foreground">Loading PDF Viewer...</div>
+});
+
+const CoverLetterPreview = dynamic(() => import('./CoverLetterPreview'), {
     ssr: false,
     loading: () => <div className="w-full h-full flex items-center justify-center text-muted-foreground">Loading PDF Viewer...</div>
 });
@@ -70,6 +76,7 @@ export type ResumeData = {
     projects: Project[];
     education: Education[];
     extracurriculars: ExtraCurricular[];
+    coverLetter?: string;
 };
 
 // Placeholder data for initial view (empty state)
@@ -85,6 +92,7 @@ const EMPTY_DATA: ResumeData = {
     projects: [],
     education: [],
     extracurriculars: [],
+    coverLetter: "",
 };
 
 export default function ResumeBuilder() {
@@ -92,6 +100,8 @@ export default function ResumeBuilder() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [hasGenerated, setHasGenerated] = useState(false);
     const [generatedPreview, setGeneratedPreview] = useState<ResumeData | null>(null);
+    const [jobDescription, setJobDescription] = useState<string>('');
+    const [createCoverLetter, setCreateCoverLetter] = useState(false);
 
     // Load master resume or initial data just to have education/extras which might not be tailored
     // But for now, we want the "Edit Your Info" to be empty-ish until tailored? 
@@ -119,6 +129,8 @@ export default function ResumeBuilder() {
 
             if (!parseData.success) throw new Error(parseData.error);
 
+            setJobDescription(parseData.fullText);
+
             // 3. Generate Tailored Content (using Master Data)
             const genRes = await fetch('/api/generate-resume', {
                 method: 'POST',
@@ -143,6 +155,11 @@ export default function ResumeBuilder() {
                 experiences: genData.experiences,
                 projects: genData.projects,
                 // Skills, Education, Extras remain as is from Master
+                coverLetter: createCoverLetter
+                    ? (masterData.coverLetter
+                        ? masterData.coverLetter.replace("[Role Name]", "Target Role").replace("[Company Name]", "Target Company")
+                        : "Dear Hiring Manager,\n\nPlease create a Master Cover Letter in the profile settings to enable automatic tailoring.")
+                    : undefined
             };
 
             setResumeData(tailoredResume);
@@ -181,9 +198,9 @@ export default function ResumeBuilder() {
                 </h1>
 
                 <div className="flex gap-4 items-center">
-                    <Link href="/master-resume" className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 hover:bg-secondary text-sm font-medium transition-colors border border-border">
+                    <Link href="/master-profile" className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 hover:bg-secondary text-sm font-medium transition-colors border border-border">
                         <Settings className="w-4 h-4" />
-                        Manage Master Resume
+                        Manage Master Profile
                     </Link>
                 </div>
             </header>
@@ -194,9 +211,20 @@ export default function ResumeBuilder() {
                     {/* Left: Job Input */}
                     <section className="bg-card border border-border rounded-xl p-8 shadow-sm relative overflow-hidden group h-full">
                         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                        <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                            Start Here: Paste Job URL
-                        </h2>
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-xl font-semibold flex items-center gap-2">
+                                Start Here: Paste Job URL
+                            </h2>
+                            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none text-muted-foreground hover:text-foreground transition-colors">
+                                <input
+                                    type="checkbox"
+                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    checked={createCoverLetter}
+                                    onChange={(e) => setCreateCoverLetter(e.target.checked)}
+                                />
+                                Create Cover Letter
+                            </label>
+                        </div>
                         <JobInput onGenerate={handleGenerate} isLoading={isGenerating} />
                     </section>
 
@@ -265,22 +293,31 @@ export default function ResumeBuilder() {
                     </section>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Editor Section */}
+                {/* Horizontally Scrollable 4-Section Row */}
+                <div className="flex gap-8 overflow-x-auto pb-4">
+                    {/* Resume Content Section */}
                     <motion.section
                         layout
-                        className="bg-card border border-border rounded-xl p-6 shadow-sm"
+                        className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col gap-6 min-w-[600px] flex-shrink-0"
                     >
-                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-blue-400" />
-                            {hasGenerated ? "Tailored Result (Editable)" : "Resume Content"}
-                        </h2>
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-xl font-semibold flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-blue-400" />
+                                    {hasGenerated ? "Tailored Result (Editable)" : "Resume Content"}
+                                </h2>
+                            </div>
+
+                            {hasGenerated && jobDescription && (
+                                <ATSScore resumeData={resumeData} jobDescription={jobDescription} />
+                            )}
+                        </div>
 
                         {!hasGenerated ? (
                             <div className="h-64 flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border/50 rounded-xl bg-muted/20">
                                 <ArrowRight className="w-8 h-8 mb-2 opacity-50" />
                                 <p>Enter a Job URL above to generate your tailored resume.</p>
-                                <p className="text-xs mt-2">The AI will use your <Link href="/master-resume" className="underline hover:text-blue-400">Master Resume</Link> as a base.</p>
+                                <p className="text-xs mt-2">The AI will use your <Link href="/master-profile" className="underline hover:text-blue-400">Master Profile</Link> as a base.</p>
                             </div>
                         ) : (
                             <ExperienceSection
@@ -290,14 +327,14 @@ export default function ResumeBuilder() {
                         )}
                     </motion.section>
 
-                    {/* Preview Section */}
+                    {/* Resume Preview Section */}
                     <motion.div
                         layout
-                        className="bg-muted/30 border border-border rounded-xl p-6 min-h-[1500px] flex flex-col"
+                        className="bg-muted/30 border border-border rounded-xl p-6 min-h-[1500px] min-w-[600px] flex-shrink-0 flex flex-col"
                     >
                         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                             <Download className="w-5 h-5 text-green-400" />
-                            Live Preview (Full View)
+                            Resume Preview
                         </h2>
                         <div className="flex-1 bg-white rounded-lg shadow-inner overflow-hidden relative">
                             {hasGenerated || resumeData.summary || resumeData.personalInfo?.name ? (
@@ -319,8 +356,66 @@ export default function ResumeBuilder() {
                             )}
                         </div>
                     </motion.div>
+
+                    {/* Cover Letter Content Section */}
+                    <motion.section
+                        layout
+                        className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col gap-6 min-w-[600px] flex-shrink-0"
+                    >
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-semibold flex items-center gap-2">
+                                <Mail className="w-5 h-5 text-purple-400" />
+                                Cover Letter Content
+                            </h2>
+                        </div>
+
+                        {!hasGenerated ? (
+                            <div className="h-64 flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border/50 rounded-xl bg-muted/20">
+                                <Mail className="w-8 h-8 mb-2 opacity-50" />
+                                <p>Generate a tailored resume first.</p>
+                                <p className="text-xs mt-2">Check "Create Cover Letter" above to include one.</p>
+                            </div>
+                        ) : !resumeData.coverLetter ? (
+                            <div className="h-64 flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border/50 rounded-xl bg-muted/20">
+                                <Mail className="w-8 h-8 mb-2 opacity-50" />
+                                <p>No cover letter generated.</p>
+                                <p className="text-xs mt-2">Check "Create Cover Letter" and regenerate.</p>
+                            </div>
+                        ) : (
+                            <textarea
+                                className="flex-1 w-full p-4 bg-secondary/20 border border-border rounded-xl text-sm focus:ring-1 focus:ring-purple-500 outline-none resize-none min-h-[400px]"
+                                value={resumeData.coverLetter}
+                                onChange={(e) => setResumeData({ ...resumeData, coverLetter: e.target.value })}
+                                placeholder="Your cover letter content..."
+                            />
+                        )}
+                    </motion.section>
+
+                    {/* Cover Letter Preview Section */}
+                    <motion.div
+                        layout
+                        className="bg-muted/30 border border-border rounded-xl p-6 min-h-[1500px] min-w-[600px] flex-shrink-0 flex flex-col"
+                    >
+                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                            <Download className="w-5 h-5 text-purple-400" />
+                            Cover Letter Preview
+                        </h2>
+                        <div className="flex-1 bg-white rounded-lg shadow-inner overflow-hidden relative">
+                            {resumeData.coverLetter ? (
+                                <CoverLetterPreview
+                                    personalInfo={resumeData.personalInfo}
+                                    coverLetter={resumeData.coverLetter}
+                                />
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                                    <p>No cover letter to preview...</p>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
                 </div>
             </div>
         </div>
     );
 }
+

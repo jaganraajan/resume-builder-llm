@@ -34,7 +34,6 @@ export async function POST(req: Request) {
         const cleanText = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 10000); // Token limit safety
 
         // Use LLM to extract structured data
-        /*
         const { text } = await generateText({
             model: llamaModel,
             prompt: `
@@ -61,11 +60,6 @@ export async function POST(req: Request) {
         const summary = summaryMatch ?
             summaryMatch[1].trim() :
             `Parsed job description from ${url}`;
-        */
-
-        // Dummy data for now
-        const extractedKeywords = ['Next.js', 'TypeScript', 'Tailwind CSS', 'AWS', 'Mock Skill'];
-        const summary = `Mock summary for job at ${url}`;
 
         return NextResponse.json({
             success: true,

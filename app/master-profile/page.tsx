@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Save, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, FileText } from 'lucide-react';
 import ExperienceSection from '@/components/ExperienceSection';
 import { ResumeData } from '@/components/ResumeBuilder';
 import { INITIAL_DATA } from '@/lib/initialData';
@@ -18,7 +18,14 @@ export default function MasterResumePage() {
         const saved = localStorage.getItem('masterResume');
         if (saved) {
             try {
-                setData(JSON.parse(saved));
+                const parsedData = JSON.parse(saved);
+                // Merge with INITIAL_DATA to ensure new fields (like coverLetter) are populated
+                setData({
+                    ...INITIAL_DATA,
+                    ...parsedData,
+                    // Use saved coverLetter if it exists, otherwise use INITIAL_DATA
+                    coverLetter: parsedData.coverLetter || INITIAL_DATA.coverLetter,
+                });
             } catch (e) {
                 console.error("Failed to parse master resume", e);
             }
@@ -26,6 +33,12 @@ export default function MasterResumePage() {
     }, []);
 
     const handleChange = (newData: ResumeData) => {
+        setData(newData);
+        localStorage.setItem('masterResume', JSON.stringify(newData));
+    };
+
+    const handleCoverLetterChange = (coverLetter: string) => {
+        const newData = { ...data, coverLetter };
         setData(newData);
         localStorage.setItem('masterResume', JSON.stringify(newData));
     };
@@ -47,7 +60,7 @@ export default function MasterResumePage() {
                     </Link>
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                            Master Resume
+                            Master Profile
                         </h1>
                         <p className="text-muted-foreground text-sm">This is your source of truth. All tailored resumes start from here.</p>
                     </div>
@@ -69,7 +82,7 @@ export default function MasterResumePage() {
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-semibold flex items-center gap-2">
                         <Save className="w-5 h-5 text-green-400" />
-                        Edit Master Data
+                        Edit Master Resume Data
                     </h2>
                     <span className="text-xs text-green-400/80 bg-green-400/10 px-2 py-1 rounded-full animate-pulse">
                         Auto-saving locally
@@ -77,6 +90,37 @@ export default function MasterResumePage() {
                 </div>
 
                 <ExperienceSection data={data} onChange={handleChange} />
+            </motion.div>
+
+            {/* Master Cover Letter Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-card border border-border rounded-xl p-6 shadow-sm mt-8"
+            >
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-blue-400" />
+                        Master Cover Letter
+                    </h2>
+                    <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded-full">
+                        Use [Role Name] and [Company Name] as placeholders
+                    </span>
+                </div>
+
+                <p className="text-sm text-muted-foreground mb-4">
+                    Write your master cover letter template below. When generating a tailored cover letter, the AI will customize this based on the job description.
+                </p>
+
+                <textarea
+                    className="w-full min-h-[400px] p-4 bg-secondary/20 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500/50 outline-none resize-y font-mono leading-relaxed"
+                    placeholder="Dear Hiring Manager,
+
+I am writing to express my interest in the [Role Name] position at [Company Name]..."
+                    value={data.coverLetter || ''}
+                    onChange={(e) => handleCoverLetterChange(e.target.value)}
+                />
             </motion.div>
         </div>
     );
